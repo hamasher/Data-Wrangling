@@ -1,0 +1,119 @@
+import xml.etree.cElementTree as ET
+from collections import defaultdict
+import re
+import pprint
+
+OSMFILE_sample = "SAMPLE_FILE.osm"
+regex = re.compile(r'\b\S+\.?', re.IGNORECASE)
+correct_avenue_re = re.compile(r'\d0?(st|nd|rd|th|)\s(Line)$', re.IGNORECASE) #making sure the avenue values are correct
+nth_re = re.compile(r'\d\d?(st|nd|rd|th|)', re.IGNORECASE)
+PHONE_NUMBER = re.compile(r'\+1\s\d{2}\s\d{1}\s\d{2}') #used to check the phone number
+
+expected = ["Avenue","Boulevard","Bridge","Drive","East","Lane","North", "Place","South","Street", "Walk","Way","West"] #expected names in the dataset
+
+mapping = { "Ave" : "Avenue",
+            "Ave." : "Avenue",
+            "Blvd." : "Boulevard",
+            "Dr" : "Drive",
+            "Dr." : "Drive",
+            "east": "East",
+            "E" : "East",
+            "E." : "East",
+            "east" : "East",
+            "lane" : "Lane",
+            "N." : "North",
+            "N" : "North",
+            "north": "North",
+            "Pl" : "Place",
+            "S." : "South",
+            "S" : "South",
+            "south" : "South",
+            "St" : "Street",
+            "W" : "West",
+            "W." : "West",
+            "west" : "West"} #dictionary of the actual versus expected values for several street values
+
+correct_avenue_mapping = {
+                     "1st": "First",
+                     "2nd": "Second",
+                     "3rd": "Third",
+                     "4th": "Fourth",
+                     "5th": "Fifth",
+                     "6th": "Sixth",
+                     "7th": "Seventh",
+                     "8th": "Eighth",
+                     "9th": "Ninth",
+                     "10th": "Tenth",
+                     "11th": "Eleventh",
+                     "12th": "Twelfth"
+                   } #dictionary converting the numbered avenues to words
+
+def audit_street_type(street_types, street_name):
+    m = street_type_re.search(street_name)
+    if m:
+        street_type = m.group()
+        if street_type not in expected:
+            street_types[street_type].add(street_name)
+
+
+def is_street_name(elem):
+    return (elem.attrib['k'] == "addr:street")
+
+
+def audit(SAMPLE_FILE):
+    osm_file = open(SAMPLE_FILE, "r")
+    street_types = defaultdict(set)
+    for event, elem in ET.iterparse(osm_file, events=("start",)):
+
+        if elem.tag == "node" or elem.tag == "way":
+            for tag in elem.iter("tag"):
+                if is_street_name(tag):
+                    audit_street_type(street_types, tag.attrib['v'])
+    osm_file.close()
+    return street_types
+
+def update_name(name, mapping):
+
+    m = street_type_re.search(name)
+    if m:
+        street_type = m.group()
+        if street_type not in expected:
+            name = re.sub(street_type_re, mapping[street_type], name)
+    return name
+
+    if correct_avenue.match(name):
+        nth = nth_re.search(name)
+        name = correct_avenue_mapping[nth.group(0)] + " Line"
+        
+    return name
+
+def update_phone_num(phone):
+    # Check for valid phone number format
+    m = PHONE_NUMBER.match(phone)
+    if m is None:
+        # Convert all dashes to spaces
+        if "-" in phone:
+            phone = re.sub("-", " ", phone)
+        # Remove all parantheses
+        if "(" in phone or ")" in phone:
+            phone = re.sub("[()]", "", phone)
+        # Space out 10 straight numbers
+        if re.match(r'\d{10}', phone) is not None:
+            phone = phone[:3] + " " + phone[3:6] + " " + phone[6:]
+        # Space out 11 straight numbers
+        elif re.match(r'\d{11}', phone) is not None:
+            phone = phone[:1] + " " + phone[1:4] + " " + phone[4:7] \
+                        + " " + phone[7:]
+        #converting all spaces back to dashes
+        if " " in phone:
+            phone = re.sub(" ", "-", phone)
+        # Add country and NYC area code
+        if re.match(r'\d{2}\s\d{1}\s\d{2}', phone) is not None:
+            phone_num = "+1 " + phone
+        # Add + in country code
+        elif re.match(r'1\s\d{2}\s\d{1}\s\d{2}', phon) is not None:
+            phone = "+" + phone
+        # Ignore tag if no area code and local number (<10 digits)
+        elif sum(c.isdigit() for c in phone_num) < 10:
+            return None
+    return phone
